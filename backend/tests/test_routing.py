@@ -59,8 +59,14 @@ class FakeToolExecutor:
         return SqlToolResult(query=sql, row_count=1, rows=[{"order_id": "ORD-1001"}])
 
 
-def _settings() -> Settings:
-    return Settings(max_tool_iterations=4, business_current_date="2026-06-15")
+def _settings(**overrides) -> Settings:
+    defaults = dict(
+        azure_openai_api_key="test-key",
+        azure_openai_endpoint="https://test.openai.azure.com",
+        max_tool_iterations=4,
+        business_current_date="2026-06-15",
+    )
+    return Settings(**{**defaults, **overrides})
 
 
 def _run(script, tools_executor=None):
@@ -124,7 +130,7 @@ def test_tool_iteration_cap_is_respected():
     # Model keeps requesting tools forever; loop must still terminate and stream an answer.
     endless_tool_calls = [ScriptedToolCall("search_documents", {"query": "x"})]
     script = [endless_tool_calls] * 10
-    settings = Settings(max_tool_iterations=3, business_current_date="2026-06-15")
+    settings = _settings(max_tool_iterations=3)
     llm = FakeLLMClient(script, stream_tokens=["ok"])
     orchestrator = AgentOrchestrator(llm=llm, tool_executor=FakeToolExecutor(), settings=settings, schema_description="s")
     events = list(orchestrator.run("q", history=[]))

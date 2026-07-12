@@ -1,3 +1,4 @@
+from app.config import BASE_DIR
 from app.rag.ingest import load_chunks
 
 
@@ -23,9 +24,11 @@ def test_loads_all_documents_and_splits_by_section(tmp_path):
 
 
 def test_real_document_corpus_parses_into_multiple_sections():
-    from app.config import get_settings
-
-    chunks = load_chunks(get_settings().documents_dir)
+    # Reference the documents path directly rather than via get_settings() --
+    # this test is about chunking logic, not Azure config, and shouldn't
+    # start requiring credentials just because it shares a module with them.
+    documents_dir = BASE_DIR / "data" / "documents"
+    chunks = load_chunks(documents_dir)
     sources = {c.source for c in chunks}
     assert "returns_policy.md" in sources
     assert "warranty_policy.md" in sources
