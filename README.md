@@ -12,8 +12,9 @@ reasoning behind each technical choice, how routing works, and known limitations
 
 ## 1. Live Demo / Repo
 
-- Live URL: `<fill in after deployment — see §8>`
-- GitHub repo: `<fill in after push>`
+- Live URL: https://dual-mode-agentic-rag-chatbot-psi.vercel.app/
+- Backend API: https://northwind-support-backend.onrender.com (Render free tier — may cold-start after idling, see §9)
+- GitHub repo: https://github.com/deep-132/Dual-Mode-Agentic-RAG-Chatbot
 
 ---
 
@@ -213,19 +214,27 @@ pytest -v
 ## 8. Deployment
 
 This is Docker-first and platform-agnostic — any host that runs
-`docker compose` or two separate Docker containers works. Recommended path for a
-free/cheap public URL:
+`docker compose` or two separate Docker containers works. The live demo above
+is deployed as:
 
-- **Backend** → [Render](https://render.com) as a Docker Web Service pointed at
-  `backend/Dockerfile`. Set `AZURE_OPENAI_*` env vars in the Render dashboard.
-  Render's free tier cold-starts after idling — mention this if the demo is slow
-  on first request.
-- **Frontend** → Render (Docker Web Service, `frontend/Dockerfile`) or Vercel
-  (native Next.js support). Either way, set the build-time
-  `NEXT_PUBLIC_API_URL` to the deployed backend's public URL, and set
-  `ALLOWED_ORIGINS` on the backend to the deployed frontend's URL.
-- A plain VM (AWS/GCP/Azure) works identically via `docker compose up -d`
-  behind any reverse proxy/TLS terminator you already have.
+- **Backend** → [Render](https://render.com), a Docker Web Service built from
+  `backend/Dockerfile` (Root Directory: `backend`, Dockerfile Path: `Dockerfile`
+  — Render resolves the Dockerfile path relative to Root Directory, not the
+  repo root). `AZURE_OPENAI_*` and `ALLOWED_ORIGINS` are set as environment
+  variables in the Render dashboard (injected at container runtime only, never
+  into the `docker build` step — see `require_azure_credentials` in
+  `app/config.py` for why credential validation is deliberately deferred to
+  first use rather than done at Settings-construction time). Render's free
+  tier cold-starts after idling (~30-60s first request) — see §9.
+- **Frontend** → [Vercel](https://vercel.com), native Next.js build (Root
+  Directory: `frontend`; the `frontend/Dockerfile` is unused here, kept for the
+  `docker compose` / self-hosted path below). `NEXT_PUBLIC_API_URL` is set as a
+  build-time environment variable pointing at the Render backend URL above,
+  since Next.js inlines `NEXT_PUBLIC_*` vars into the client bundle at build
+  time, not runtime.
+- A plain VM (AWS/GCP/Azure) or a single Render/Fly.io host works identically
+  via `docker compose up -d` behind any reverse proxy/TLS terminator, using
+  both Dockerfiles instead of splitting across two platforms.
 
 ---
 
