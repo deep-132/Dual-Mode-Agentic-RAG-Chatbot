@@ -21,3 +21,6 @@ frontend/next-env.d.ts
 # OS
 .DS_Store
 Thumbs.db
+
+# Personal interview prep notes -- not part of the deliverable
+INTERVIEW_NOTES.md
