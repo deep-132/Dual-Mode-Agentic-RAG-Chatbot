@@ -6,7 +6,6 @@ source of truth instead of scattering `os.getenv` calls.
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -53,26 +52,32 @@ class Settings(BaseSettings):
     # --- CORS ---
     allowed_origins: list[str] = ["http://localhost:3000"]
 
-    @model_validator(mode="after")
-    def _check_azure_credentials(self) -> "Settings":
-        # Fail fast and legibly at startup rather than surfacing as an
-        # opaque `openai.APIConnectionError` deep in the agent loop the
-        # first time a chat request tries to use an empty endpoint/key.
-        missing = [
-            name
-            for name, value in (
-                ("AZURE_OPENAI_API_KEY", self.azure_openai_api_key),
-                ("AZURE_OPENAI_ENDPOINT", self.azure_openai_endpoint),
-            )
-            if not value
-        ]
-        if missing:
-            raise ValueError(
-                f"Missing required setting(s): {', '.join(missing)}. "
-                f"Set them via environment variables, or in a .env file at "
-                f"{PROJECT_ROOT / '.env'} or {BASE_DIR / '.env'}."
-            )
-        return self
+
+def require_azure_credentials(settings: "Settings") -> None:
+    """Fail fast and legibly the moment something actually needs to talk to
+    Azure OpenAI, rather than surfacing as an opaque `openai.APIConnectionError`
+    deep in the agent loop the first time a chat request runs.
+
+    Deliberately NOT a Settings-level validator: Settings is also constructed
+    by build-time-only code (`scripts/build_index.py`, prebuilding the FAISS
+    index) that never touches Azure and has no reason to require its
+    credentials -- e.g. Docker build steps don't have runtime environment
+    variables injected, so requiring them there breaks the image build.
+    """
+    missing = [
+        name
+        for name, value in (
+            ("AZURE_OPENAI_API_KEY", settings.azure_openai_api_key),
+            ("AZURE_OPENAI_ENDPOINT", settings.azure_openai_endpoint),
+        )
+        if not value
+    ]
+    if missing:
+        raise ValueError(
+            f"Missing required setting(s): {', '.join(missing)}. "
+            f"Set them via environment variables, or in a .env file at "
+            f"{PROJECT_ROOT / '.env'} or {BASE_DIR / '.env'}."
+        )
 
 
 @lru_cache

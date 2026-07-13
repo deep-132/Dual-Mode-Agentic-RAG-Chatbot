@@ -10,11 +10,12 @@ from typing import Any
 
 from openai import AzureOpenAI
 
-from app.config import Settings
+from app.config import Settings, require_azure_credentials
 
 
 class AzureChatClient:
     def __init__(self, settings: Settings) -> None:
+        require_azure_credentials(settings)
         self._deployment = settings.azure_openai_chat_deployment
         self._client = AzureOpenAI(
             api_key=settings.azure_openai_api_key,
