@@ -74,7 +74,7 @@ based on tool descriptions and the user's question. See §4 for why.
 | Structured data | SQLite, built from `orders.csv` at container-build/startup time, queried through **generated SQL** (never embedded) | The brief explicitly requires text-to-SQL, not RAG-over-rows. SQLite needs no server process, ships as a single file, and is trivial to rebuild deterministically from the fixed CSV — appropriate for ~200 rows. |
 | SQL safety | Two independent layers: (1) static validation — single statement, `SELECT`-only, table whitelist, forbidden-keyword check, forced `LIMIT`; (2) `PRAGMA query_only = ON` on every connection, i.e. **engine-level** read-only enforcement | Static SQL validation by regex/parsing can never be proven complete against a sufficiently adversarial LLM output. Layer (2) doesn't need to be — SQLite itself refuses any write regardless of what slipped past layer (1). This is the single design decision I'd most want to walk through in an interview (see `backend/app/sql/guard.py` and `backend/app/sql/db.py`). |
 | Backend | FastAPI, Server-Sent Events for streaming | Native `async`, first-class typing via Pydantic, and `StreamingResponse` makes token-level SSE straightforward without a websocket. |
-| Frontend | Next.js 14 (App Router) + Tailwind, hand-rolled SSE client via `fetch` | `EventSource` can't send a POST body or custom headers, and this request needs both (message + conversation history) — a manual `fetch` + `ReadableStream` reader consumes the same `event:`/`data:` framing with full control over the request. |
+| Frontend | Next.js 16 (App Router) + Tailwind, hand-rolled SSE client via `fetch` | `EventSource` can't send a POST body or custom headers, and this request needs both (message + conversation history) — a manual `fetch` + `ReadableStream` reader consumes the same `event:`/`data:` framing with full control over the request. |
 | Packaging | Multi-stage Dockerfiles for both services + `docker-compose.yml` | Reproducible builds; FAISS index is **prebuilt at image-build time** (not on first request) so a bad document fails CI/build, not a user's first query, and cold starts are fast. |
 
 ---
@@ -250,10 +250,12 @@ is deployed as:
 - **No conversation persistence.** History lives in frontend React state only;
   refreshing the page loses it. Adding a session store (Redis/Postgres) would be
   the next step for multi-session/multi-device use.
-- **No streaming during tool-selection.** By design (§4) — but it does mean the
-  user sees nothing happen during phase 1 (embedding search + SQL execution +
-  the routing LLM call) before tokens start streaming. A "thinking..." indicator
-  would smooth this over; not implemented.
+- **No streaming during tool-selection.** By design (§4) — phase 1 (embedding
+  search + SQL execution + the routing LLM call) produces no user-facing
+  tokens. The frontend shows an animated "thinking" indicator during this gap
+  so it doesn't look frozen, but there's no way to show partial progress
+  (e.g. "searching documents..." vs "querying orders...") without the backend
+  emitting intermediate SSE events, which isn't implemented.
 - **Tool-iteration cap (4) is a blunt backstop**, not a smart budget — if a
   future mixed question genuinely needs more than 4 tool round-trips, it will
   be cut off. Never observed in testing against the provided dataset.
